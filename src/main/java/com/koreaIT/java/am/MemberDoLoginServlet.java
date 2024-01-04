@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Map;
 
 import com.koreaIT.java.am.config.Config;
 import com.koreaIT.java.am.util.DBUtil;
@@ -14,9 +15,10 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
-@WebServlet("/article/doWrite")
-public class ArticleDoWriteServlet extends HttpServlet {
+@WebServlet("/member/doLogin")
+public class MemberDoLoginServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	
 	@Override
@@ -30,18 +32,28 @@ public class ArticleDoWriteServlet extends HttpServlet {
 			Class.forName(Config.getDBDriverName());
 			conn = DriverManager.getConnection(Config.getDBUrl(), Config.getDBUser(), Config.getDBPassword());
 			
-			String title = request.getParameter("title");
-			String body = request.getParameter("body");
+			String loginId = request.getParameter("loginId");
+			String loginPw = request.getParameter("loginPw");
 			
-			SecSql sql = SecSql.from("INSERT INTO article");
-			sql.append("SET regDate = NOW()");
-			sql.append(", updateDate = NOW()");
-			sql.append(", title = ?", title);
-			sql.append(", `body` = ?", body);
+			SecSql sql = SecSql.from("SELECT * FROM `member`");
+			sql.append("WHERE loginId = ?", loginId);
 			
-			int id = DBUtil.insert(conn, sql);
+			Map<String, Object> memberMap = DBUtil.selectRow(conn, sql);
 			
-			response.getWriter().append(String.format("<script>alert('%d번 글을 생성했습니다'); location.replace('list');</script>", id));
+			if (memberMap.isEmpty()) {
+				response.getWriter().append(String.format("<script>alert('[ %s ]은(는) 존재하지 않는 아이디입니다'); history.back();</script>", loginId));
+				return;
+			}
+			
+			if (memberMap.get("loginPw").equals(loginPw) == false) {
+				response.getWriter().append("<script>alert('비밀번호가 일치하지 않습니다'); location.replace('login');</script>");
+				return;
+			}
+			
+			HttpSession session = request.getSession();
+			session.setAttribute("loginedMemberId", memberMap.get("id"));
+			
+			response.getWriter().append(String.format("<script>alert('%s님 환영합니다'); location.replace('../home/main');</script>", memberMap.get("name")));
 			
 		} catch (ClassNotFoundException e) {
 			System.out.println("드라이버 로딩 실패");
